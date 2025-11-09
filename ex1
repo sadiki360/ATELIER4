@@ -1,1 +1,274 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <sstream>
 
+using namespace std;
+
+class Telechargeable {
+public:
+    virtual ~Telechargeable() {} // Destructeur virtuel pour l'héritage
+    
+    virtual void telecharger() const = 0; 
+    
+    void afficherMessage() const {
+        cout << "  [Message Telechargeable] : Prêt pour le téléchargement." << endl;
+    }
+};
+
+class Ressource {
+protected:
+    int id;
+    string titre;
+    string auteur;
+    int annee;
+
+public:
+  
+    Ressource(int _id, const string& _titre, const string& _auteur, int _annee)
+        : id(_id), titre(_titre), auteur(_auteur), annee(_annee) {}
+
+   
+    virtual ~Ressource() {}
+
+  
+    int getId() const { return id; }
+    const string& getTitre() const { return titre; }
+    const string& getAuteur() const { return auteur; }
+    int getAnnee() const { return annee; }
+
+    bool operator==(const Ressource& autre) const {
+        return id == autre.id;
+    }
+ 
+    virtual void afficherInfos() const {
+        cout << "ID: " << id 
+             << ", Titre: " << titre 
+             << ", Auteur: " << auteur 
+             << ", Année: " << annee;
+    }
+
+    void telecharger() const {
+        cout << "  [Ressource::telecharger()] : Démarrage du processus de téléchargement générique..." << endl;
+    }
+};
+
+class Livre : public Ressource, public Telechargeable {
+private:
+    int nbPages; // Attribut spécifique
+
+public:
+    // Constructeur
+    Livre(int _id, const string& _titre, const string& _auteur, int _annee, int _nbPages)
+        : Ressource(_id, _titre, _auteur, _annee), nbPages(_nbPages) {}
+
+    // Redéfinition de afficherInfos()
+    void afficherInfos() const override {
+        Ressource::afficherInfos(); // Appel de la méthode de la classe de base
+        cout << ", Type: Livre, Pages: " << nbPages << endl;
+    }
+
+    void telecharger() const override {
+        cout << "  [Livre::telecharger()] : Téléchargement du **Livre** '" << getTitre() << "' (format PDF/EPUB)..." << endl;
+    }
+};
+
+class Magazine : public Ressource, public Telechargeable {
+private:
+    int numero; // Attribut spécifique
+
+public:
+    // Constructeur
+    Magazine(int _id, const string& _titre, const string& _auteur, int _annee, int _numero)
+        : Ressource(_id, _titre, _auteur, _annee), numero(_numero) {}
+
+    // Redéfinition de afficherInfos()
+    void afficherInfos() const override {
+        Ressource::afficherInfos();
+        cout << ", Type: Magazine, Numéro: " << numero << endl;
+    }
+
+    // Redéfinition de telecharger() de Telechargeable
+    void telecharger() const override {
+        cout << "  [Magazine::telecharger()] : Téléchargement du **Magazine** '" << getTitre() << "' (Numéro " << numero << ")..." << endl;
+    }
+};
+
+class Video : public Ressource, public Telechargeable {
+private:
+    string format; // Attribut spécifique
+
+public:
+    // Constructeur
+    Video(int _id, const string& _titre, const string& _auteur, int _annee, const string& _format)
+        : Ressource(_id, _titre, _auteur, _annee), format(_format) {}
+
+    // Redéfinition de afficherInfos()
+    void afficherInfos() const override {
+        Ressource::afficherInfos();
+        cout << ", Type: Vidéo, Format: " << format << endl;
+    }
+
+    // Redéfinition de telecharger() de Telechargeable
+    void telecharger() const override {
+        cout << "  [Video::telecharger()] : Streaming/Téléchargement de la **Vidéo** '" << getTitre() << "' (Format " << format << ")..." << endl;
+    }
+};
+
+// --- 4. Classe Mediatheque ---
+class Mediatheque {
+private:
+    // Utilisation de pointeurs vers Ressource pour le polymorphisme
+    vector<Ressource*> ressources; 
+
+public:
+    // Destructeur (pour libérer la mémoire allouée dynamiquement)
+    ~Mediatheque() {
+        for (Ressource* res : ressources) {
+            delete res;
+        }
+    }
+
+    // Méthode pour ajouter une ressource
+    void ajouterRessource(Ressource* res) {
+        ressources.push_back(res);
+        cout << "-> Ajout de la ressource ID " << res->getId() << "." << endl;
+    }
+
+    // Méthode pour afficher toutes les ressources
+    void afficherToutes() const {
+        cout << "\n=== Liste Complète des Ressources ===" << endl;
+        if (ressources.empty()) {
+            cout << "La médiathèque est vide." << endl;
+            return;
+        }
+        for (const Ressource* res : ressources) {
+            res->afficherInfos();
+        }
+        cout << "=======================================" << endl;
+    }
+
+    // Surcharge de rechercher() : par titre
+    vector<const Ressource*> rechercher(const string& titre) const {
+        vector<const Ressource*> resultats;
+        string titreMin = titre;
+        transform(titreMin.begin(), titreMin.end(), titreMin.begin(), ::tolower); // Simplification de recherche
+        
+        for (const Ressource* res : ressources) {
+            string resTitreMin = res->getTitre();
+            transform(resTitreMin.begin(), resTitreMin.end(), resTitreMin.begin(), ::tolower);
+            if (resTitreMin.find(titreMin) != string::npos) {
+                resultats.push_back(res);
+            }
+        }
+        return resultats;
+    }
+
+    // Surcharge de rechercher() : par année
+    vector<const Ressource*> rechercher(int annee) const {
+        vector<const Ressource*> resultats;
+        for (const Ressource* res : ressources) {
+            if (res->getAnnee() == annee) {
+                resultats.push_back(res);
+            }
+        }
+        return resultats;
+    }
+
+    // Surcharge de rechercher() : par auteur et année
+    vector<const Ressource*> rechercher(const string& auteur, int annee) const {
+        vector<const Ressource*> resultats;
+        string auteurMin = auteur;
+        transform(auteurMin.begin(), auteurMin.end(), auteurMin.begin(), ::tolower);
+        
+        for (const Ressource* res : ressources) {
+            string resAuteurMin = res->getAuteur();
+            transform(resAuteurMin.begin(), resAuteurMin.end(), resAuteurMin.begin(), ::tolower);
+            if (resAuteurMin.find(auteurMin) != string::npos && res->getAnnee() == annee) {
+                resultats.push_back(res);
+            }
+        }
+        return resultats;
+    }
+
+    // Fonction utilitaire pour afficher les résultats de recherche
+    void afficherResultats(const vector<const Ressource*>& resultats, const string& critere) const {
+        cout << "\n--- Résultats de recherche (" << critere << ") ---" << endl;
+        if (resultats.empty()) {
+            cout << "Aucune ressource trouvée pour ce critère." << endl;
+        } else {
+            for (const Ressource* res : resultats) {
+                res->afficherInfos();
+            }
+        }
+        cout << "-----------------------------------------------" << endl;
+    }
+};
+
+// --- 6. Fonction main() pour le test ---
+int main() {
+  
+    cout << "### Démarrage de la Gestion de Médiathèque ###" << endl;
+
+    // Création d'une instance de la Médiathèque
+    Mediatheque maMediatheque;
+
+    // Création de plusieurs objets (allocation dynamique)
+    Livre* l1 = new Livre(101, "Les Misérables", "Victor Hugo", 1862, 1488);
+    Magazine* m1 = new Magazine(205, "Science & Vie", "Collectif", 2025, 1250);
+    Video* v1 = new Video(312, "L'Odyssée de l'Espace", "Stanley Kubrick", 1968, "4K");
+    Livre* l2 = new Livre(102, "1984", "George Orwell", 1949, 328);
+    Video* v2 = new Video(313, "Inception", "Christopher Nolan", 2010, "HD");
+
+    // Ajout des ressources à la médiathèque
+    maMediatheque.ajouterRessource(l1);
+    maMediatheque.ajouterRessource(m1);
+    maMediatheque.ajouterRessource(v1);
+    maMediatheque.ajouterRessource(l2);
+    maMediatheque.ajouterRessource(v2);
+
+    // --- Test des méthodes afficherInfos() ---
+    maMediatheque.afficherToutes();
+    
+    // --- Test des méthodes telecharger() (avec qualification de classes) ---
+    cout << "\n### Test de Téléchargement et Conflit ###" << endl;
+
+    // a) Appel polymorphique de Telechargeable::telecharger() (méthode redéfinie dans les classes dérivées)
+    cout << "--- Appel polymorphique (via Telechargeable) ---" << endl;
+    l1->telecharger(); 
+    v1->telecharger();
+    m1->afficherMessage(); // Méthode de Telechargeable
+
+    // b) Appel explicite de Ressource::telecharger() pour gérer le conflit
+    // Les deux classes Livre et Ressource ont une méthode 'telecharger()'
+    // On force l'appel à la version de Ressource.
+    cout << "\n--- Appel qualifié (Résolution de Conflit) ---" << endl;
+    l1->Ressource::telecharger(); 
+    v2->Ressource::telecharger();
+    
+    // --- Test de l'opérateur == (point 5) ---
+    cout << "\n### Test de l'Opérateur == (Comparaison par ID) ###" << endl;
+    Livre* l3 = new Livre(102, "Même ID", "Test", 2020, 100); // Même ID que l2
+    
+    cout << "Comparaison L1 (ID 101) et L2 (ID 102) : " << (*l1 == *l2 ? "Égal" : "Différent") << endl;
+    cout << "Comparaison L2 (ID 102) et L3 (ID 102) : " << (*l2 == *l3 ? "Égal" : "Différent") << endl;
+
+    delete l3; // Nettoyage de l'objet temporaire
+
+    cout << "\n### Test de la Surcharge de la Recherche ###" << endl;
+    
+    auto resultats1 = maMediatheque.rechercher("odyssée");
+    maMediatheque.afficherResultats(resultats1, "Titre: 'odyssée'");
+
+    auto resultats2 = maMediatheque.rechercher(1949);
+    maMediatheque.afficherResultats(resultats2, "Année: 1949");
+
+   
+    auto resultats3 = maMediatheque.rechercher("nolan", 2010);
+    maMediatheque.afficherResultats(resultats3, "Auteur: 'nolan' et Année: 2010");
+
+    cout << "\n### Fin du programme ###" << endl;
+    
+    return 0;
+}
