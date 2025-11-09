@@ -1,1 +1,215 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <stdexcept>
+#include <memory> // Pour std::shared_ptr
 
+using namespace std;
+
+// Déclarations anticipées (Forward Declarations)
+class CompteBancaire;
+class AgentBancaire; 
+class Banque;
+
+// --- 1. Classe Client ---
+class Client {
+private:
+    int idClient;
+    string nom;
+    string cin; 
+
+public:
+    // Constructeur
+    Client(int id, const string& n, const string& c)
+        : idClient(id), nom(n), cin(c) {}
+
+    // Accesseurs publics
+    int getId() const { return idClient; }
+    const string& getNom() const { return nom; }
+    const string& getCIN() const { return cin; }
+
+    void afficherInfos() const {
+        cout << "Client ID: " << idClient << ", Nom: " << nom << ", CIN: " << cin;
+    }
+};
+
+class CompteBancaire {
+private:
+    long numeroCompte;
+    double solde;
+    string codeSecret; // Donnée sensible
+    shared_ptr<Client> clientProprietaire; // Référence vers le client
+
+public:
+    // Constructeur
+    CompteBancaire(long num, double initialSolde, const string& code, shared_ptr<Client> client)
+        : numeroCompte(num), solde(initialSolde), codeSecret(code), clientProprietaire(client) {}
+
+    long getNumeroCompte() const { return numeroCompte; }
+    double getSolde() const { return solde; }
+    shared_ptr<Client> getClient() const { return clientProprietaire; }
+
+    void deposer(double montant) {
+        if (montant > 0) {
+            solde += montant;
+            cout << "Depot de " << montant << " effectué sur le compte " << numeroCompte << ". Nouveau solde: " << solde << endl;
+        } else {
+            throw invalid_argument("Le montant du depot doit etre positif.");
+        }
+    }
+
+    bool retirer(double montant, const string& code) {
+        if (code != codeSecret) {
+            cout << "Echec du retrait: Code secret incorrect." << endl;
+            return false;
+        }
+        if (montant > 0 && solde >= montant) {
+            solde -= montant;
+            cout << "Retrait de " << montant << " effectué. Nouveau solde: " << solde << endl;
+            return true;
+        } else if (montant <= 0) {
+            throw invalid_argument("Le montant du retrait doit etre positif.");
+        } else {
+            cout << "Echec du retrait: Solde insuffisant." << endl;
+            return false;
+        }
+    }
+    
+    void afficherInfosPubliques() const {
+        cout << "Numéro: " << numeroCompte << ", Solde: " << solde << ", Propriétaire: " << clientProprietaire->getNom() << endl;
+    }
+};
+
+class AgentBancaire {
+private:
+    int idAgent;
+    string nom;
+
+public:
+    // Constructeur
+    AgentBancaire(int id, const string& n) : idAgent(id), nom(n) {}
+
+    void afficherInfos() const {
+        cout << "Agent ID: " << idAgent << ", Nom: " << nom << endl;
+    }
+
+    void consulterCodeSecret(const CompteBancaire& compte) const {
+        cout << "[" << nom << " - Agent Autorisé] Consultation confidentielle du compte " << compte.numeroCompte << endl;
+        // Accès direct au membre privé 'codeSecret'
+        cout << "  -> Code Secret (Confidentiel): " << compte.codeSecret << endl; 
+    }
+
+    bool effectuerTransfert(CompteBancaire& source, CompteBancaire& destination, double montant, const string& codeAutorisation) const {
+        if (codeAutorisation != "AGENT_AUTH_2025") {
+            cout << "Transfert échoué: Code d'autorisation agent incorrect." << endl;
+            return false;
+        }
+        
+        if (montant > 0 && source.solde >= montant) {
+            // Accès direct au membre privé 'solde' sans passer par retirer/déposer, 
+            // ce qui est souvent requis pour les opérations internes d'un agent.
+            source.solde -= montant; 
+            destination.solde += montant;
+            cout << "[" << nom << " - Transfert Agent] Transfert de " << montant << " de Cpte " 
+                 << source.numeroCompte << " vers Cpte " << destination.numeroCompte << " réussi." << endl;
+            return true;
+        } else if (montant <= 0) {
+            throw invalid_argument("Le montant du transfert doit etre positif.");
+        } else {
+            cout << "Transfert échoué: Solde insuffisant sur le compte source " << source.numeroCompte << endl;
+            return false;
+        }
+    }
+};
+
+class Banque {
+private:
+    string nomBanque;
+    vector<shared_ptr<Client>> clients;
+    vector<shared_ptr<CompteBancaire>> comptes;
+    vector<AgentBancaire> agents;
+
+public:
+    Banque(const string& nom) : nomBanque(nom) {}
+
+    void ajouterClient(shared_ptr<Client> c) { clients.push_back(c); }
+    void ajouterCompte(shared_ptr<CompteBancaire> c) { comptes.push_back(c); }
+    void ajouterAgent(const AgentBancaire& a) { agents.push_back(a); }
+
+    void afficherRapportAudit() const {
+        cout << "\n=================================================" << endl;
+        cout << "         RAPPORT D'AUDIT INTERNE (" << nomBanque << ")" << endl;
+        cout << "=================================================" << endl;
+        
+        for (const auto& compte : comptes) {
+            cout << "Compte N° " << compte->numeroCompte << endl;
+            cout << "  Solde: " << compte->solde << " EUR" << endl;
+            // Accès direct au membre privé 'codeSecret' pour des raisons d'audit
+            cout << "  Code Secret: " << compte->codeSecret << " (ACCES RESTREINT A L'AUDIT)" << endl;
+            cout << "  Client: " << compte->clientProprietaire->getNom() 
+                 << " (ID " << compte->clientProprietaire->getId() << ")" << endl;
+            cout << "-------------------------------------------------" << endl;
+        }
+        cout << "=================================================" << endl;
+    }
+   
+    shared_ptr<CompteBancaire> trouverCompte(long num) {
+        for (auto& c : comptes) {
+            if (c->getNumeroCompte() == num) {
+                return c;
+            }
+        }
+        return nullptr;
+    }
+};
+
+int main() {
+    cout << "### EXERCICE 2 : SYSTEME DE GESTION BANCAIRE ###" << endl;
+
+    // Création de la banque
+    Banque bnp("BNP Maroc");
+
+    auto clientA = make_shared<Client>(1, "Fouad El Alaoui", "A234567");
+    auto clientB = make_shared<Client>(2, "Sarah Benali", "B987654");
+    bnp.ajouterClient(clientA);
+    bnp.ajouterClient(clientB);
+
+    auto compteA = make_shared<CompteBancaire>(1001, 5000.0, "1234", clientA);
+    auto compteB = make_shared<CompteBancaire>(1002, 1000.0, "5678", clientB);
+    bnp.ajouterCompte(compteA);
+    bnp.ajouterCompte(compteB);
+
+    AgentBancaire agent("AG007", "Ahmed Ziyadi");
+    bnp.ajouterAgent(agent);
+    
+    cout << "\n--- Etats Initiaux des Comptes ---" << endl;
+    compteA->afficherInfosPubliques();
+    compteB->afficherInfosPubliques();
+
+    cout << "\n--- Opérations Client (Depot/Retrait) ---" << endl;
+    try {
+        compteA->deposer(1500.0);
+        compteB->retirer(300.0, "5678"); // Retrait réussi
+        compteA->retirer(7000.0, "1234"); // Echec (solde insuffisant)
+        compteB->retirer(100.0, "0000"); // Echec (code incorrect)
+    } catch (const exception& e) {
+        cerr << "Erreur: " << e.what() << endl;
+    }
+
+    cout << "\n--- Opérations Agent Bancaire (Friend Access) ---" << endl;
+  
+    agent.consulterCodeSecret(*compteA); 
+
+    agent.effectuerTransfert(*compteB, *compteA, 500.0, "AGENT_AUTH_2025");
+    
+    cout << "\n--- Etat des Comptes après Transfert ---" << endl;
+    compteA->afficherInfosPubliques();
+    compteB->afficherInfosPubliques();
+
+    bnp.afficherRapportAudit(); 
+
+    cout << "\n### Fin du programme ###" << endl;
+
+    return 0;
+}
